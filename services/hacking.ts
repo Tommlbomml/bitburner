@@ -1,5 +1,6 @@
 import { Logger } from "./logger";
 import { Server } from "../models/server";
+import { getAvailableThreads } from "../utils/thread.helper";
 
 export class HackingService {
     private readonly ns: NS;
@@ -26,42 +27,101 @@ export class HackingService {
     }
 
     private async prepareTarget(): Promise<void> {
-        const minSec = this.target.getMinSecurity();
-        const curSec = this.target.getSecurity();
-        const maxMoney = this.target.getMaxMoney();
-        const curMoney = this.target.getMoneyAvailable();
+        let weakenThreads = this.target.calculateWeakenThreads(this.ns.getHostname());
+        let growThreads = this.target.calculateGrowThreads(this.ns.getHostname());
+        let additionalWeakenThreads = this.target.calculateAdditionalWeakenThreads(growThreads);
 
-        if (curSec > minSec + 5) {
-            const threads = Math.max(1, Math.floor(this.getAvailableThreads("weaken")));
-            this.logger.info("Weakening %s with %s threads (security: %s)", this.target.hostname, threads, curSec);
+        while (weakenThreads > 0) {
+            this.logger.debug(
+                "Security: %s (min: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getSecurity()),
+                this.logger.humanReadableNumber(this.target.getMinSecurity()),
+                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+            );
+            const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
+            const threads = Math.min(weakenThreads, maxWeakenThreads);
+            this.logger.info("Weakening %s with %s threads", this.target.hostname, threads);
             const weakened = await this.target.weaken(threads);
             if (!weakened) {
                 this.logger.error("Failed to weaken %s", this.target.hostname);
             }
-        } else if (curMoney < maxMoney * 0.75) {
-            const threads = Math.max(1, Math.floor(this.getAvailableThreads("grow")));
-            this.logger.info("Growing %s with %s threads (money: %s/%s)", this.target.hostname, threads, curMoney, maxMoney);
+            weakenThreads = this.target.calculateWeakenThreads(this.ns.getHostname());
+            this.logger.debug(
+                "Security: %s (min: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getSecurity()),
+                this.logger.humanReadableNumber(this.target.getMinSecurity()),
+                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+            );
+        }
+        while (growThreads > 0) {
+            this.logger.debug(
+                "Money: %s (max: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
+                this.logger.humanReadableNumber(this.target.getMaxMoney()),
+                this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            );
+            const maxGrowThreads = getAvailableThreads(this.ns, "grow");
+            const threads = Math.min(growThreads, maxGrowThreads);
+            this.logger.info("Growing %s with %s threads", this.target.hostname, threads);
             const grown = await this.target.grow(threads);
             if (!grown) {
                 this.logger.error("Failed to grow %s", this.target.hostname);
             }
+            growThreads = this.target.calculateGrowThreads(this.ns.getHostname());
+            this.logger.debug(
+                "Money: %s (max: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
+                this.logger.humanReadableNumber(this.target.getMaxMoney()),
+                this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            );
+        }
+        while (additionalWeakenThreads > 0) {
+            this.logger.debug(
+                "Security: %s (min: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getSecurity()),
+                this.logger.humanReadableNumber(this.target.getMinSecurity()),
+                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+            );
+            const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
+            const threads = Math.min(additionalWeakenThreads, maxWeakenThreads);
+            this.logger.info("Weakening %s with %s additional threads", this.target.hostname, threads);
+            const weakened = await this.target.weaken(threads);
+            if (!weakened) {
+                this.logger.error("Failed to weaken %s", this.target.hostname);
+            }
+            additionalWeakenThreads = this.target.calculateAdditionalWeakenThreads(growThreads);
+            this.logger.debug(
+                "Security: %s (min: %s) (%s%)",
+                this.logger.humanReadableNumber(this.target.getSecurity()),
+                this.logger.humanReadableNumber(this.target.getMinSecurity()),
+                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+            );
         }
     }
 
     private async performHack(): Promise<void> {
-        const threads = Math.max(1, Math.floor(this.getAvailableThreads("hack")));
-        this.logger.info("Hacking %s with %s threads", this.target.hostname, threads);
-        const hacked = await this.target.hack(threads);
-        if (!hacked) {
-            this.logger.error("Failed to hack %s", this.target.hostname);
+        this.logger.debug(
+            "Money: %s (max: %s) (%s%)",
+            this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
+            this.logger.humanReadableNumber(this.target.getMaxMoney()),
+            this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+        );
+        let hackThreads = this.target.calculateHackThreads(10, this.ns.getHostname());
+        while (hackThreads > 0) {
+            const maxHackThreads = getAvailableThreads(this.ns, "hack");
+            const threads = Math.min(hackThreads, maxHackThreads);
+            this.logger.info("Hacking %s with %s threads", this.target.hostname, threads);
+            const hacked = await this.target.hack(threads);
+            if (!hacked) {
+                this.logger.error("Failed to hack %s", this.target.hostname);
+            }
+            hackThreads -= threads;
         }
-    }
-
-    private getAvailableThreads(fn: "hack" | "grow" | "weaken"): number {
-        const ramPerThread = this.ns.getScriptRam(`batch/${fn}.ts`, "home");
-        const maxRam = this.ns.getServerMaxRam("home");
-        const usedRam = this.ns.getServerUsedRam("home");
-        const availableRam = maxRam - usedRam;
-        return availableRam > 0 ? Math.floor(availableRam / ramPerThread) : 1;
+        this.logger.debug(
+            "Money: %s (max: %s) (%s%)",
+            this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
+            this.logger.humanReadableNumber(this.target.getMaxMoney()),
+            this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+        );
     }
 }
