@@ -19,6 +19,7 @@ export async function main(ns: NS): Promise<void> {
 
     ns.nuke(targetServer.name);
     logger.success(`Successfully rooted ${targetServer.name}`);
+    logger.terminalLog(`Prepare: run prepare.ts ${targetServer.name}`);
 }
 
 function openPorts(ns: NS, targetServer: TargetServer): void {

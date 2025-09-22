@@ -76,6 +76,11 @@ export class Logger {
         }
     }
 
+    public terminalLog(message: string, ...args: any[]): void {
+        if (!this.shouldLog("info")) return;
+        this.printToTerminal(this.colorText(this.format(message, args), LogColor.White));
+    }
+
     public humanReadableNumber(num: number, decimals: number = 2): string {
         if (!isFinite(num)) return String(num);
         if (num === 0) return "0";
@@ -102,6 +107,30 @@ export class Logger {
         }
         const out = value.toFixed(decimals).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
         return sign + out + suffix;
+    }
+
+    public humanReadableTime(ms: number): string {
+        if (ms < 0) return "-" + this.humanReadableTime(-ms);
+        if (ms === 0) return "0 ms";
+        ms = Math.floor(ms);
+        if (ms < 1) return "< 1 ms";
+        const units = [
+            { label: "d", ms: 86400000 },
+            { label: "h", ms: 3600000 },
+            { label: "m", ms: 60000 },
+            { label: "s", ms: 1000 },
+            { label: "ms", ms: 1 },
+        ];
+        let remaining = ms;
+        const parts: string[] = [];
+        for (const unit of units) {
+            if (remaining >= unit.ms) {
+                const value = Math.floor(remaining / unit.ms);
+                remaining -= value * unit.ms;
+                parts.push(`${value} ${unit.label}`);
+            }
+        }
+        return parts.join(", ");
     }
 
     private print(message: string): void {

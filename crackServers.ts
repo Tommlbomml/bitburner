@@ -10,7 +10,6 @@ export async function main(ns: NS): Promise<void> {
     let newlyCrackedServers: TargetServer[] = [];
 
     scanNetwork(ns, servers);
-    // print all servers
     for (const server of servers) {
         if (server.isRooted) {
             crackedServers.push(server);
@@ -21,6 +20,7 @@ export async function main(ns: NS): Promise<void> {
             crackedServers.push(server);
             newlyCrackedServers.push(server);
         }
+        await ns.sleep(10);
     }
     logReport(logger, servers);
     logNewlyCracked(logger, newlyCrackedServers);
