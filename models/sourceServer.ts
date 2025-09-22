@@ -1,6 +1,7 @@
 import { BaseServer } from "./baseServer";
 
 export class SourceServer extends BaseServer {
+    declare readonly name: string;
     readonly cores: number;
     readonly maxRam: number;
 

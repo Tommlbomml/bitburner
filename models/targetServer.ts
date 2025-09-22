@@ -1,4 +1,5 @@
 import { BaseServer } from "./baseServer";
+import { SourceServer } from "./sourceServer";
 
 export enum PortType {
     SSH,
@@ -84,5 +85,54 @@ export class TargetServer extends BaseServer {
             case PortType.SQL:
                 return this.sqlPortOpen;
         }
+    }
+
+    calculateWeakenThreads(sourceServer: SourceServer): number {
+        if (this.currentSecurity <= this.minSecurity) {
+            return 0;
+        }
+        const securityToReduce = this.currentSecurity - this.minSecurity;
+        return Math.ceil(securityToReduce / this.getWeakenPerThread(sourceServer));
+    }
+
+    getWeakenPerThread(sourceServer: SourceServer): number {
+        return this.ns.weakenAnalyze(1, sourceServer.cores);
+    }
+
+    calculateGrowThreads(sourceServer: SourceServer): number {
+        const stepExp = 3; // Using powers of 3 for step sizes
+
+        if (this.currentMoney >= this.maxMoney) {
+            return 0;
+        }
+        let moneyRatio = this.maxMoney / (this.currentMoney + 1); // each thread grows additively + 1 before applying growth factor
+        let threads = Math.ceil(this.ns.growthAnalyze(this.name, moneyRatio, sourceServer.cores));
+        let step = Math.pow(stepExp, Math.floor(Math.log(threads) / Math.log(stepExp))); // calculate largest power of stepExp <= threads
+        while (step > 0) {
+            moneyRatio = this.maxMoney / (this.currentMoney + threads);
+            let requiredThreads = Math.ceil(this.ns.growthAnalyze(this.name, moneyRatio, sourceServer.cores));
+            if (threads === requiredThreads) {
+                // exit early if we hit the target
+                return threads;
+            }
+            if (threads > requiredThreads) {
+                // too many threads, decrease
+                threads -= step;
+            } else {
+                // overshot, one step back
+                threads += step;
+                step = Math.floor(step / 3);
+            }
+        }
+        return threads;
+    }
+
+    calculateAdditionalWeakenThreads(growThreads: number, sourceServer: SourceServer): number {
+        const securityIncrease = this.calculateSecurityIncreaseFromGrowth(growThreads, sourceServer);
+        return Math.ceil(securityIncrease / this.getWeakenPerThread(sourceServer));
+    }
+
+    calculateSecurityIncreaseFromGrowth(growthThreads: number, sourceServer: SourceServer): number {
+        return this.ns.growthAnalyzeSecurity(growthThreads, this.name, sourceServer.cores);
     }
 }

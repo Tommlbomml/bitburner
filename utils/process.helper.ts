@@ -24,3 +24,29 @@ export async function executeAndWait(ns: NS, script: string, host: string = "hom
     }
     return true;
 }
+
+export function isServerGettingPrepared(ns: NS, serverName: string): boolean {
+    return isScriptRunningWithArgOnAnyHost(ns, "batch/prepareServer.ts", serverName);
+}
+
+export function isServerGettingHacked(ns: NS, serverName: string): boolean {
+    return isScriptRunningWithArgOnAnyHost(ns, "hack.ts", serverName);
+}
+
+export function isScriptRunningWithArg(ns: NS, scriptName: string, host: string, arg: string): boolean {
+    const processes = ns.ps(host);
+    return processes.some((proc) => proc.filename === scriptName && proc.args.includes(arg));
+}
+
+export function isScriptRunningWithArgOnAnyHost(ns: NS, scriptName: string, arg: string): boolean {
+    const allHosts = scanAllServers(ns);
+    return allHosts.some((host) => isScriptRunningWithArg(ns, scriptName, host, arg));
+}
+
+// Helper to recursively scan all servers
+export function scanAllServers(ns: NS, start: string = "home", visited: Set<string> = new Set()): string[] {
+    if (visited.has(start)) return [];
+    visited.add(start);
+    const neighbors = ns.scan(start);
+    return [start, ...neighbors.flatMap((n) => scanAllServers(ns, n, visited))];
+}

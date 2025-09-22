@@ -39,6 +39,11 @@ export class HackingService {
                 this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
+            if (maxWeakenThreads <= 0) {
+                await this.ns.sleep(10000);
+                this.logger.warn("No available RAM to weaken, waiting...");
+                continue;
+            }
             const threads = Math.min(weakenThreads, maxWeakenThreads);
             this.logger.info("Weakening %s with %s threads", this.target.hostname, threads);
             const weakened = await this.target.weaken(threads);
@@ -61,6 +66,11 @@ export class HackingService {
                 this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
             );
             const maxGrowThreads = getAvailableThreads(this.ns, "grow");
+            if (maxGrowThreads <= 0) {
+                await this.ns.sleep(10000);
+                this.logger.warn("No available RAM to grow, waiting...");
+                continue;
+            }
             const threads = Math.min(growThreads, maxGrowThreads);
             this.logger.info("Growing %s with %s threads", this.target.hostname, threads);
             const grown = await this.target.grow(threads);
@@ -83,6 +93,11 @@ export class HackingService {
                 this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
+            if (maxWeakenThreads <= 0) {
+                await this.ns.sleep(10000);
+                this.logger.warn("No available RAM to weaken, waiting...");
+                continue;
+            }
             const threads = Math.min(additionalWeakenThreads, maxWeakenThreads);
             this.logger.info("Weakening %s with %s additional threads", this.target.hostname, threads);
             const weakened = await this.target.weaken(threads);
@@ -109,6 +124,11 @@ export class HackingService {
         let hackThreads = this.target.calculateHackThreads(10, this.ns.getHostname());
         while (hackThreads > 0) {
             const maxHackThreads = getAvailableThreads(this.ns, "hack");
+            if (maxHackThreads <= 0) {
+                await this.ns.sleep(10000);
+                this.logger.warn("No available RAM to hack, waiting...");
+                continue;
+            }
             const threads = Math.min(hackThreads, maxHackThreads);
             this.logger.info("Hacking %s with %s threads", this.target.hostname, threads);
             const hacked = await this.target.hack(threads);
