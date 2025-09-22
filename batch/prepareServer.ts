@@ -30,6 +30,7 @@ import { SourceServer } from "../models/sourceServer";
 import { TargetServer } from "../models/targetServer";
 
 export async function main(ns: NS): Promise<void> {
+    ns.ui.openTail();
     const logger = new Logger(ns, "info", "prepareServer");
     const targetServerName = ns.args[0]?.toString() || "n00dles";
     const ramUsagePercent = parseFloat(ns.args[1]?.toString() || "90");
@@ -89,17 +90,28 @@ export async function main(ns: NS): Promise<void> {
         }
         logger.debug("Start times - preWeakenStart: %s, growStart: %s, postWeakenStart: %s", preWeakenStart, growStart, postWeakenStart);
 
-        // log what we are going to do
+        // log status
+        ns.clearLog();
         logger.info(
-            "Preparing %s: preWeakenThreads=%s, growThreads=%s, postWeakenThreads=%s (needed: preWeaken=%s, grow=%s)",
+            "Preparing %s (money: %s/%s, security: %s/%s)",
             targetServer.name,
-            preWeakenThreads,
-            growThreads,
-            postWeakenThreads,
-            preWeakenThreadsNeeded + preWeakenThreads,
-            growThreadsNeeded
+            logger.humanReadableNumber(targetServer.currentMoney),
+            logger.humanReadableNumber(targetServer.maxMoney),
+            logger.humanReadableNumber(targetServer.currentSecurity),
+            logger.humanReadableNumber(targetServer.minSecurity)
         );
-        logger.info(
+        if (preWeakenThreadsNeeded + preWeakenThreads === 0) {
+            logger.info("Weakening done");
+        } else {
+            logger.info("Weaken Threads: needed=%s, running=%s", preWeakenThreadsNeeded + preWeakenThreads, preWeakenThreads);
+        }
+        if (growThreadsNeeded === 0) {
+            logger.info("Growing done");
+        } else {
+            logger.info("Grow Threads: needed=%s, running=%s", growThreadsNeeded, growThreads);
+        }
+
+        logger.debug(
             "Server total ram: %s, used: %s, available: %s (using %s% = %s), script ram: weaken=%s, grow=%s, total=%s",
             logger.humanReadableNumber(sourceServer.maxRam),
             logger.humanReadableNumber(sourceServer.usedRam),
@@ -150,7 +162,7 @@ export async function main(ns: NS): Promise<void> {
                 logger.warn("Not enough RAM to run %s with %s threads on %s", task.script, task.threads, sourceServer.name);
                 continue;
             }
-            logger.info("Running %s with %s threads at %s ms", task.script, task.threads, task.start);
+            logger.info("Running %s with %s threads", task.script, task.threads);
 
             ns.exec(`batch/${task.script}.ts`, sourceServer.name, task.threads, targetServer.name);
             if (i < tasks.length - 1) {
