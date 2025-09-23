@@ -31,6 +31,7 @@ import { TargetServer } from "../models/targetServer";
 
 export async function main(ns: NS): Promise<void> {
     ns.ui.openTail();
+    ns.ui.resizeTail(500, 160);
     const logger = new Logger(ns, "info", "prepareServer");
     const targetServerName = ns.args[0]?.toString() || "n00dles";
     const ramUsagePercent = parseFloat(ns.args[1]?.toString() || "90");
@@ -57,7 +58,6 @@ export async function main(ns: NS): Promise<void> {
             const maxWeakenThreads = Math.floor(ramAvailable / weakenThreadSize);
             preWeakenThreads = Math.min(preWeakenThreadsNeeded, maxWeakenThreads);
             logger.debug("preWeakenThreads: %s", preWeakenThreads);
-            preWeakenThreadsNeeded -= preWeakenThreads;
             ramAvailable -= preWeakenThreads * weakenThreadSize;
         }
         if (growThreadsNeeded > 0 && ramAvailable > growThreadSize + weakenThreadSize) {
@@ -91,25 +91,7 @@ export async function main(ns: NS): Promise<void> {
         logger.debug("Start times - preWeakenStart: %s, growStart: %s, postWeakenStart: %s", preWeakenStart, growStart, postWeakenStart);
 
         // log status
-        ns.clearLog();
-        logger.info(
-            "Preparing %s (money: %s/%s, security: %s/%s)",
-            targetServer.name,
-            logger.humanReadableNumber(targetServer.currentMoney),
-            logger.humanReadableNumber(targetServer.maxMoney),
-            logger.humanReadableNumber(targetServer.currentSecurity),
-            logger.humanReadableNumber(targetServer.minSecurity)
-        );
-        if (preWeakenThreadsNeeded + preWeakenThreads === 0) {
-            logger.info("Weakening done");
-        } else {
-            logger.info("Weaken Threads: needed=%s, running=%s", preWeakenThreadsNeeded + preWeakenThreads, preWeakenThreads);
-        }
-        if (growThreadsNeeded === 0) {
-            logger.info("Growing done");
-        } else {
-            logger.info("Grow Threads: needed=%s, running=%s", growThreadsNeeded, growThreads);
-        }
+        logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded);
 
         logger.debug(
             "Server total ram: %s, used: %s, available: %s (using %s% = %s), script ram: weaken=%s, grow=%s, total=%s",
@@ -126,19 +108,15 @@ export async function main(ns: NS): Promise<void> {
         // run scripts
         // first find out which script to start first
         // maybe create an array of {script, startTime, threads} and sort by startTime
-        const tasks: { script: string; start: number; threads: number }[] = [
-            { script: "weaken", start: preWeakenStart, threads: preWeakenThreads },
-            { script: "grow", start: growStart, threads: growThreads },
-            { script: "weaken", start: postWeakenStart, threads: postWeakenThreads },
-        ];
+        const tasks: { script: string; start: number; threads: number }[] = [];
+        if (preWeakenThreads > 0) tasks.push({ script: "weaken", start: preWeakenStart, threads: preWeakenThreads });
+        if (growThreads > 0) tasks.push({ script: "grow", start: growStart, threads: growThreads });
+        if (postWeakenThreads > 0) tasks.push({ script: "weaken", start: postWeakenStart, threads: postWeakenThreads });
 
         tasks.sort((a, b) => a.start - b.start);
 
         let extraSleptMs = 0;
         for (let i = 0; i < tasks.length; i++) {
-            // TODO: we need to recalculate the times because if our hacking skill has increased while sleeping, the times will change
-            // or if the target server security/money has changed, the needed threads will change
-            // for now we just assume they are the same during the batch
             let actualTaskTime = tasks[i].script === "weaken" ? ns.getWeakenTime(targetServer.name) : ns.getGrowTime(targetServer.name);
             let expectedTaskTime = tasks[i].script === "weaken" ? weakenTime : growTime;
             while (expectedTaskTime > actualTaskTime) {
@@ -162,19 +140,36 @@ export async function main(ns: NS): Promise<void> {
                 logger.warn("Not enough RAM to run %s with %s threads on %s", task.script, task.threads, sourceServer.name);
                 continue;
             }
-            logger.info("Running %s with %s threads", task.script, task.threads);
+            logger.debug("Running %s with %s threads", task.script, task.threads);
 
             ns.exec(`batch/${task.script}.ts`, sourceServer.name, task.threads, targetServer.name);
             if (i < tasks.length - 1) {
                 const nextTask = tasks[i + 1];
-                const sleepTime = nextTask.start - task.start;
-                logger.info("Sleeping %s ms until next task", logger.humanReadableTime(sleepTime));
-                await ns.sleep(sleepTime);
+                const totalSleepTime = nextTask.start - task.start;
+                const next = "next task";
+                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, totalSleepTime);
+                let remainingSleep = totalSleepTime;
+                while (remainingSleep > 0) {
+                    const chunk = Math.max(Math.min(remainingSleep, 1000), 1);
+                    await ns.sleep(chunk);
+                    remainingSleep -= chunk;
+                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, remainingSleep);
+                }
             } else {
                 // last task, wait for it to finish
-                const sleepTime = endTime - task.start;
-                logger.info("Sleeping %s ms until end of batch", logger.humanReadableTime(sleepTime));
-                await ns.sleep(sleepTime);
+                const totalSleepTime = endTime - task.start;
+                let next = "finished";
+                if (preWeakenThreadsNeeded > preWeakenThreads || growThreadsNeeded > growThreads) {
+                    next = "next batch";
+                }
+                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, totalSleepTime);
+                let remainingSleep = totalSleepTime;
+                while (remainingSleep > 0) {
+                    const chunk = Math.max(Math.min(remainingSleep, 1000), 1);
+                    await ns.sleep(chunk);
+                    remainingSleep -= chunk;
+                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, remainingSleep);
+                }
             }
         }
         logger.info(
@@ -189,4 +184,40 @@ export async function main(ns: NS): Promise<void> {
     logger.info("%s is fully prepared!", targetServer.name);
     logger.terminalLog("%s is fully prepared!", targetServer.name);
     logger.terminalLog(`Hack: run hack.ts ${targetServer.name}`);
+}
+
+function logReport(
+    logger: Logger,
+    targetServer: TargetServer,
+    preWeakenThreads: number,
+    preWeakenThreadsNeeded: number,
+    growThreads: number,
+    growThreadsNeeded: number,
+    next?: string,
+    sleep?: number
+): void {
+    logger.clearLog();
+    logger.info("Preparing %s", targetServer.name);
+    logger.info(
+        "Money: %s/%s, Security: %s/%s",
+        logger.humanReadableNumber(targetServer.currentMoney),
+        logger.humanReadableNumber(targetServer.maxMoney),
+        logger.humanReadableNumber(targetServer.currentSecurity),
+        logger.humanReadableNumber(targetServer.minSecurity)
+    );
+    if (preWeakenThreadsNeeded === 0) {
+        logger.info("Weakening done");
+    } else {
+        logger.info("Weaken Threads: %s of %s", preWeakenThreads, preWeakenThreadsNeeded);
+    }
+    if (growThreadsNeeded === 0) {
+        logger.info("Growing done");
+    } else {
+        logger.info("Grow Threads:   %s of %s", growThreads, growThreadsNeeded);
+    }
+    if (sleep !== undefined && next !== undefined) {
+        logger.info("Sleeping %s until %s", logger.humanReadableTime(sleep), next);
+    } else {
+        logger.info("Preparing...");
+    }
 }
