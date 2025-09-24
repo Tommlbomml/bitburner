@@ -1,13 +1,15 @@
 import { PortType, TargetServer } from "../models/targetServer";
 import { Logger } from "../services/logger";
+import { isServerGettingPrepared, isServerGettingHacked } from "../utils/process.helper";
 
 export async function main(ns: NS): Promise<void> {
     const hostname = ns.args[0]?.toString() || "n00dles";
-    const logger = new Logger(ns, "info", "crackServer", true, true);
+    const logger = new Logger(ns, "info", "terminal");
     const targetServer = new TargetServer(ns, hostname);
 
     if (targetServer.isRooted) {
         logger.debug(`${targetServer.name} is already rooted.`);
+        logPrepareInstructions(ns, logger, targetServer);
         return;
     }
     openPorts(ns, targetServer);
@@ -19,7 +21,7 @@ export async function main(ns: NS): Promise<void> {
 
     ns.nuke(targetServer.name);
     logger.success(`Successfully rooted ${targetServer.name}`);
-    logger.terminalLog(`Prepare: run prepare.ts ${targetServer.name}`);
+    logger.logInstructions(`run prepare.ts ${targetServer.name}`);
 }
 
 function openPorts(ns: NS, targetServer: TargetServer): void {
@@ -37,5 +39,11 @@ function openPorts(ns: NS, targetServer: TargetServer): void {
         if (targetServer.canNuke) {
             break;
         }
+    }
+}
+
+function logPrepareInstructions(ns: NS, logger: Logger, targetServer: TargetServer): void {
+    if (targetServer.maxMoney > 0 && !isServerGettingHacked(ns, targetServer.name) && !isServerGettingPrepared(ns, targetServer.name)) {
+        logger.logInstructions(`run prepare.ts ${targetServer.name}`);
     }
 }

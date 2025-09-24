@@ -10,7 +10,7 @@ export class HacknetService {
 
     constructor(ns: NS, percentOfMoneyUsed: number = 0.1) {
         this.ns = ns;
-        this.logger = new Logger(ns, "info", "HacknetService");
+        this.logger = new Logger(ns, "info");
         this.percentOfMoneyUsed = percentOfMoneyUsed;
         this.maxNodes = ns.hacknet.maxNumNodes();
         this.currentNodeCount = ns.hacknet.numNodes();
@@ -53,11 +53,11 @@ export class HacknetService {
             if (!node) break;
             const cost = node.getLevelUpgradeCost();
             if (node === lastNode && cost === lastCost) {
-                this.logger.warn("Level upgrade purchase stalled for node %s (cost: %s)", node.index, cost);
+                this.logger.warn(`Level upgrade purchase stalled for node ${node.index} (cost: ${cost})`);
                 break;
             }
             node.upgradeLevel();
-            this.logger.debug("Level upgrade purchased for node %s (cost: %s)", node.index, cost);
+            this.logger.debug(`Level upgrade purchased for node ${node.index} (cost: ${cost})`);
             levelsPurchased++;
             lastNode = node;
             lastCost = cost;
@@ -75,11 +75,11 @@ export class HacknetService {
             if (!node) break;
             const cost = node.getRamUpgradeCost();
             if (node === lastNode && cost === lastCost) {
-                this.logger.warn("RAM upgrade purchase stalled for node %s (cost: %s)", node.index, cost);
+                this.logger.warn(`RAM upgrade purchase stalled for node ${node.index} (cost: ${cost})`);
                 break;
             }
             node.upgradeRam();
-            this.logger.debug("RAM upgrade purchased for node %s (cost: %s)", node.index, cost);
+            this.logger.debug(`RAM upgrade purchased for node ${node.index} (cost: ${cost})`);
             ramsPurchased++;
             lastNode = node;
             lastCost = cost;
@@ -97,11 +97,11 @@ export class HacknetService {
             if (!node) break;
             const cost = node.getCoreUpgradeCost();
             if (node === lastNode && cost === lastCost) {
-                this.logger.warn("Core upgrade purchase stalled for node %s (cost: %s)", node.index, cost);
+                this.logger.warn(`Core upgrade purchase stalled for node ${node.index} (cost: ${cost})`);
                 break;
             }
             node.upgradeCore();
-            this.logger.debug("Core upgrade purchased for node %s (cost: %s)", node.index, cost);
+            this.logger.debug(`Core upgrade purchased for node ${node.index} (cost: ${cost})`);
             coresPurchased++;
             lastNode = node;
             lastCost = cost;
@@ -183,13 +183,13 @@ export class HacknetService {
 
     private logBoughtNodes(count: number): void {
         if (count > 0) {
-            this.logger.info("Purchased %s nodes (total owned: %s / %s)", count, this.currentNodeCount, this.maxNodes);
+            this.logger.info(`Purchased ${count} nodes (total owned: ${this.currentNodeCount} / ${this.maxNodes})`);
         }
     }
 
     private logBoughtUpgrades(levels: number, rams: number, cores: number): void {
         if (levels > 0 || rams > 0 || cores > 0) {
-            this.logger.info("Purchased %s level upgrades, %s RAM upgrades, and %s core upgrades", levels, rams, cores);
+            this.logger.info(`Purchased ${levels} level upgrades, ${rams} RAM upgrades, and ${cores} core upgrades`);
         }
     }
 

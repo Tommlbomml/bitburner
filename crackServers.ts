@@ -1,10 +1,11 @@
 import { TargetServer } from "./models/targetServer";
 import { executeScript } from "./utils/process.helper";
 import { Logger } from "./services/logger";
+import { isServerGettingPrepared, isServerGettingHacked } from "./utils/process.helper";
 
 export async function main(ns: NS): Promise<void> {
     let servers: TargetServer[] = [];
-    const logger = new Logger(ns, "info", "crackServers", true, true);
+    const logger = new Logger(ns, "info", "terminal");
 
     let crackedServers: TargetServer[] = [];
     let newlyCrackedServers: TargetServer[] = [];
@@ -24,7 +25,7 @@ export async function main(ns: NS): Promise<void> {
     }
     logReport(logger, servers);
     logNewlyCracked(logger, newlyCrackedServers);
-    logCracked(logger, crackedServers);
+    logCracked(ns, logger, crackedServers);
 }
 
 function scanNetwork(ns: NS, servers: TargetServer[], server: TargetServer = new TargetServer(ns, "home"), visited: Set<string> = new Set<string>()): void {
@@ -54,10 +55,37 @@ function logNewlyCracked(logger: Logger, newlyCrackedServers: TargetServer[]): v
     logger.info(`Newly cracked servers: ${newlyCrackedServers.map((server) => server.name).join(", ")}`);
 }
 
-function logCracked(logger: Logger, crackedServers: TargetServer[]): void {
+function logCracked(ns: NS, logger: Logger, crackedServers: TargetServer[]): void {
     if (crackedServers.length === 0) {
         logger.info("No servers cracked.");
         return;
     }
     logger.info(`Cracked servers: ${crackedServers.map((server) => server.name).join(", ")}`);
+
+    const hacking: TargetServer[] = [];
+    const preparing: TargetServer[] = [];
+    const toBeHacked: TargetServer[] = [];
+    const toBePrepared: TargetServer[] = [];
+
+    for (const server of crackedServers) {
+        if (server.maxMoney === 0) continue;
+        if (isServerGettingHacked(ns, server.name)) {
+            hacking.push(server);
+        } else if (isServerGettingPrepared(ns, server.name)) {
+            preparing.push(server);
+        } else if (server.currentMoney === server.maxMoney && server.currentSecurity === server.minSecurity) {
+            toBeHacked.push(server);
+        } else {
+            toBePrepared.push(server);
+        }
+    }
+    logger.emptyLine();
+    logger.info(`Servers being hacked: ${hacking.map((s) => s.name).join(", ") || "None"}`);
+    logger.info(`Servers being prepared: ${preparing.map((s) => s.name).join(", ") || "None"}`);
+    logger.info(`Servers to be hacked: ${toBeHacked.map((s) => s.name).join(", ") || "None"}`);
+    toBeHacked.sort((a, b) => b.maxMoney - a.maxMoney);
+    toBeHacked.forEach((s) => logger.logInstructions(`run hack.ts ${s.name}`));
+    logger.info(`Servers to be prepared: ${toBePrepared.map((s) => s.name).join(", ") || "None"}`);
+    toBePrepared.sort((a, b) => b.maxMoney - a.maxMoney);
+    toBePrepared.forEach((s) => logger.logInstructions(`run prepare.ts ${s.name}`));
 }

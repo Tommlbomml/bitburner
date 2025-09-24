@@ -2,7 +2,7 @@ import { TargetServer } from "./models/targetServer";
 import { Logger } from "./services/logger";
 
 export async function main(ns: NS): Promise<void> {
-    const logger = new Logger(ns, "info", "compareServers", true, true);
+    const logger = new Logger(ns, "info", "terminal");
     const servers = getAllServers(ns);
     const rankedServers = rankServersByProfitability(ns, servers);
     for (const server of rankedServers) {

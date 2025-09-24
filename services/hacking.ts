@@ -9,7 +9,7 @@ export class HackingService {
 
     constructor(ns: NS, target: string = "n00dles") {
         this.ns = ns;
-        this.logger = new Logger(ns, "info", "HackingService");
+        this.logger = new Logger(ns, "info");
         this.target = new Server(ns, target);
     }
 
@@ -33,10 +33,9 @@ export class HackingService {
 
         while (weakenThreads > 0) {
             this.logger.debug(
-                "Security: %s (min: %s) (%s%)",
-                this.logger.formatNumber(this.target.getSecurity()),
-                this.logger.formatNumber(this.target.getMinSecurity()),
-                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                `Security: ${this.logger.formatNumber(this.target.getSecurity())} (min: ${this.logger.formatNumber(this.target.getMinSecurity())}) (${this.logger.formatNumber(
+                    (this.target.getSecurity() / this.target.getMinSecurity()) * 100
+                )}%)`
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
             if (maxWeakenThreads <= 0) {
@@ -45,25 +44,23 @@ export class HackingService {
                 continue;
             }
             const threads = Math.min(weakenThreads, maxWeakenThreads);
-            this.logger.info("Weakening %s with %s threads", this.target.hostname, threads);
+            this.logger.info(`Weakening ${this.target.hostname} with ${threads} threads`);
             const weakened = await this.target.weaken(threads);
             if (!weakened) {
-                this.logger.error("Failed to weaken %s", this.target.hostname);
+                this.logger.error(`Failed to weaken ${this.target.hostname}`);
             }
             weakenThreads = this.target.calculateWeakenThreads(this.ns.getHostname());
             this.logger.debug(
-                "Security: %s (min: %s) (%s%)",
-                this.logger.formatNumber(this.target.getSecurity()),
-                this.logger.formatNumber(this.target.getMinSecurity()),
-                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                `Security: ${this.logger.formatNumber(this.target.getSecurity())} (min: ${this.logger.formatNumber(this.target.getMinSecurity())}) (${this.logger.formatNumber(
+                    (this.target.getSecurity() / this.target.getMinSecurity()) * 100
+                )}%)`
             );
         }
         while (growThreads > 0) {
             this.logger.debug(
-                "Money: %s (max: %s) (%s%)",
-                this.logger.formatNumber(this.target.getMoneyAvailable()),
-                this.logger.formatNumber(this.target.getMaxMoney()),
-                this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+                `Money: ${this.logger.formatNumber(this.target.getMoneyAvailable())} (max: ${this.logger.formatNumber(this.target.getMaxMoney())}) (${this.logger.formatNumber(
+                    (this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100
+                )}%)`
             );
             const maxGrowThreads = getAvailableThreads(this.ns, "grow");
             if (maxGrowThreads <= 0) {
@@ -72,25 +69,23 @@ export class HackingService {
                 continue;
             }
             const threads = Math.min(growThreads, maxGrowThreads);
-            this.logger.info("Growing %s with %s threads", this.target.hostname, threads);
+            this.logger.info(`Growing ${this.target.hostname} with ${threads} threads`);
             const grown = await this.target.grow(threads);
             if (!grown) {
-                this.logger.error("Failed to grow %s", this.target.hostname);
+                this.logger.error(`Failed to grow ${this.target.hostname}`);
             }
             growThreads = this.target.calculateGrowThreads(this.ns.getHostname());
             this.logger.debug(
-                "Money: %s (max: %s) (%s%)",
-                this.logger.formatNumber(this.target.getMoneyAvailable()),
-                this.logger.formatNumber(this.target.getMaxMoney()),
-                this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+                `Money: ${this.logger.formatNumber(this.target.getMoneyAvailable())} (max: ${this.logger.formatNumber(this.target.getMaxMoney())}) (${this.logger.formatNumber(
+                    (this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100
+                )}%)`
             );
         }
         while (additionalWeakenThreads > 0) {
             this.logger.debug(
-                "Security: %s (min: %s) (%s%)",
-                this.logger.formatNumber(this.target.getSecurity()),
-                this.logger.formatNumber(this.target.getMinSecurity()),
-                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                `Security: ${this.logger.formatNumber(this.target.getSecurity())} (min: ${this.logger.formatNumber(this.target.getMinSecurity())}) (${this.logger.formatNumber(
+                    (this.target.getSecurity() / this.target.getMinSecurity()) * 100
+                )}%)`
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
             if (maxWeakenThreads <= 0) {
@@ -99,27 +94,25 @@ export class HackingService {
                 continue;
             }
             const threads = Math.min(additionalWeakenThreads, maxWeakenThreads);
-            this.logger.info("Weakening %s with %s additional threads", this.target.hostname, threads);
+            this.logger.info(`Weakening ${this.target.hostname} with ${threads} additional threads`);
             const weakened = await this.target.weaken(threads);
             if (!weakened) {
-                this.logger.error("Failed to weaken %s", this.target.hostname);
+                this.logger.error(`Failed to weaken ${this.target.hostname}`);
             }
             additionalWeakenThreads = this.target.calculateAdditionalWeakenThreads(growThreads);
             this.logger.debug(
-                "Security: %s (min: %s) (%s%)",
-                this.logger.formatNumber(this.target.getSecurity()),
-                this.logger.formatNumber(this.target.getMinSecurity()),
-                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                `Security: ${this.logger.formatNumber(this.target.getSecurity())} (min: ${this.logger.formatNumber(this.target.getMinSecurity())}) (${this.logger.formatNumber(
+                    (this.target.getSecurity() / this.target.getMinSecurity()) * 100
+                )}%)`
             );
         }
     }
 
     private async performHack(): Promise<void> {
         this.logger.debug(
-            "Money: %s (max: %s) (%s%)",
-            this.logger.formatNumber(this.target.getMoneyAvailable()),
-            this.logger.formatNumber(this.target.getMaxMoney()),
-            this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            `Money: ${this.logger.formatNumber(this.target.getMoneyAvailable())} (max: ${this.logger.formatNumber(this.target.getMaxMoney())}) (${this.logger.formatNumber(
+                (this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100
+            )}%)`
         );
         let hackThreads = this.target.calculateHackThreads(10, this.ns.getHostname());
         while (hackThreads > 0) {
@@ -130,18 +123,17 @@ export class HackingService {
                 continue;
             }
             const threads = Math.min(hackThreads, maxHackThreads);
-            this.logger.info("Hacking %s with %s threads", this.target.hostname, threads);
+            this.logger.info(`Hacking ${this.target.hostname} with ${threads} threads`);
             const hacked = await this.target.hack(threads);
             if (!hacked) {
-                this.logger.error("Failed to hack %s", this.target.hostname);
+                this.logger.error(`Failed to hack ${this.target.hostname}`);
             }
             hackThreads -= threads;
         }
         this.logger.debug(
-            "Money: %s (max: %s) (%s%)",
-            this.logger.formatNumber(this.target.getMoneyAvailable()),
-            this.logger.formatNumber(this.target.getMaxMoney()),
-            this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            `Money: ${this.logger.formatNumber(this.target.getMoneyAvailable())} (max: ${this.logger.formatNumber(this.target.getMaxMoney())}) (${this.logger.formatNumber(
+                (this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100
+            )}%)`
         );
     }
 }

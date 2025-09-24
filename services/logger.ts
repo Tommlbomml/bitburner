@@ -14,71 +14,98 @@ export enum LogColor {
 
 export class Logger {
     private readonly ns: NS;
-    private readonly level: LogLevel;
-    private readonly scriptName?: string;
-    private readonly terminal: boolean = false;
+    private logLevel: LogLevel;
+    private targetOutput: "terminal" | "tail" | "both";
+    private printPrefix: boolean;
 
-    constructor(ns: NS, level: LogLevel = "info", scriptName?: string, disableNSLogs: boolean = true, printToTerminal: boolean = false) {
+    constructor(ns: NS, logLevel: LogLevel = "info", targetOutput: "terminal" | "tail" | "both" = "tail", printPrefix: boolean = true, disableNSLogs: boolean = true) {
         this.ns = ns;
-        this.level = level;
-        this.scriptName = scriptName;
-        this.terminal = printToTerminal;
+        this.logLevel = logLevel;
+        this.targetOutput = targetOutput;
+        this.printPrefix = printPrefix;
         if (disableNSLogs) {
             this.ns.disableLog("ALL");
         }
     }
 
-    public success(message: string, ...args: any[]): void {
-        if (!this.shouldLog("info")) return;
-        this.print(this.colorText(`SUCCESS: ${this.format(message, args)}`, LogColor.Green));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(`SUCCESS (${this.scriptName}): ${this.format(message, args)}`, LogColor.Green));
-        }
+    setTargetOutput(targetOutput: "terminal" | "tail" | "both") {
+        this.targetOutput = targetOutput;
     }
 
-    public info(message: string, ...args: any[]): void {
-        if (!this.shouldLog("info")) return;
-        this.print(this.colorText(`INFO: ${this.format(message, args)}`, LogColor.White));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(`INFO (${this.scriptName}): ${this.format(message, args)}`, LogColor.White));
-        }
+    setLogLevel(level: LogLevel) {
+        this.logLevel = level;
     }
 
-    public warn(message: string, ...args: any[]): void {
+    setPrintPrefix(printPrefix: boolean) {
+        this.printPrefix = printPrefix;
+    }
+
+    disableNSLogs() {
+        this.ns.disableLog("ALL");
+    }
+
+    enableNSLogs() {
+        this.ns.enableLog("ALL");
+    }
+
+    public success(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "SCS: " : "";
+        if (!this.shouldLog("info")) return;
+        message = `${prefix}${message}`;
+        message = this.colorText(message, LogColor.Green);
+        this.print(message, targetOutput);
+    }
+
+    public info(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "INF: " : "";
+        if (!this.shouldLog("info")) return;
+        message = `${prefix}${message}`;
+        message = this.colorText(message, LogColor.White);
+        this.print(message, targetOutput);
+    }
+
+    public warn(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "WRN: " : "";
         if (!this.shouldLog("warn")) return;
-        this.print(this.colorText(`WARN: ${this.format(message, args)}`, LogColor.Yellow));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(`WARN (${this.scriptName}): ${this.format(message, args)}`, LogColor.Yellow));
-        }
+        message = `${prefix}${message}`;
+        message = this.colorText(message, LogColor.Yellow);
+        this.print(message, targetOutput);
     }
 
-    public error(message: string, ...args: any[]): void {
+    public error(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "ERR: " : "";
         if (!this.shouldLog("error")) return;
-        this.print(this.colorText(`ERROR: ${this.format(message, args)}`, LogColor.Red));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(`ERROR (${this.scriptName}): ${this.format(message, args)}`, LogColor.Red));
-        }
+        message = `${prefix}${message}`;
+        message = this.colorText(message, LogColor.Red);
+        this.print(message, targetOutput);
     }
 
-    public debug(message: string, ...args: any[]): void {
+    public debug(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "DBG: " : "";
         if (!this.shouldLog("debug")) return;
-        this.print(this.colorText(`DEBUG: ${this.format(message, args)}`, LogColor.Blue));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(`DEBUG (${this.scriptName}): ${this.format(message, args)}`, LogColor.Blue));
-        }
+        message = `${prefix}${message}`;
+        message = this.colorText(message, LogColor.Blue);
+        this.print(message, targetOutput);
     }
 
-    public colorLog(message: string, color: LogColor, ...args: any[]): void {
+    public colorLog(message: string, color: LogColor, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
         if (!this.shouldLog("info")) return;
-        this.print(this.colorText(this.format(message, args), color));
-        if (this.terminal) {
-            this.printToTerminal(this.colorText(this.format(message, args), color));
-        }
+        message = this.colorText(message, color);
+        this.print(message, targetOutput);
     }
 
-    public terminalLog(message: string, ...args: any[]): void {
-        if (!this.shouldLog("info")) return;
-        this.printToTerminal(this.colorText(this.format(message, args), LogColor.White));
+    public terminalLog(message: string): void {
+        const targetOutput = "terminal";
+        this.print(this.colorText(message, LogColor.White), targetOutput);
+    }
+
+    public logInstructions(message: string, targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        const prefix = this.printPrefix ? "INSTRUCTION: " : "";
+        this.print(this.colorText(`${prefix}${this.colorText(message, LogColor.Cyan)}`, LogColor.White), targetOutput);
+    }
+
+    public emptyLine(targetOutput: "terminal" | "tail" | "both" = this.targetOutput): void {
+        this.print("", targetOutput);
     }
 
     public clearLog(): void {
@@ -101,24 +128,37 @@ export class Logger {
         return this.ns.formatRam(ram, decimals);
     }
 
-    private print(message: string): void {
-        this.ns.print(message);
+    public padString(str: string, type: "start" | "end" | "both" = "start", length: number = 5, char: string = " "): string {
+        if (type === "start") {
+            return str.padStart(length, char);
+        } else if (type === "end") {
+            return str.padEnd(length, char);
+        } else {
+            const half = Math.floor((length - str.length) / 2);
+            return str.padStart(half + str.length, char).padEnd(length, char);
+        }
     }
 
-    private printToTerminal(message: string): void {
-        this.ns.tprint(message);
+    public padNumber(num: number, type: "start" | "end" | "both" = "start", length: number = 5, char: string = " "): string {
+        const str = num.toString();
+        return this.padString(str, type, length, char);
     }
 
-    private colorText(text: string, color: LogColor): string {
-        return `${color}${text}${LogColor.Base}`;
+    public colorText(text: string, color: LogColor, baseColor: LogColor = LogColor.Base): string {
+        return `${color}${text}${baseColor}`;
+    }
+
+    private print(message: string, targetOutput: "tail" | "terminal" | "both" = this.targetOutput): void {
+        if (targetOutput === "tail" || targetOutput === "both") {
+            this.ns.print(message);
+        }
+        if (targetOutput === "terminal" || targetOutput === "both") {
+            this.ns.tprint(message);
+        }
     }
 
     private shouldLog(level: LogLevel): boolean {
         const levels: LogLevel[] = ["debug", "info", "warn", "error"];
-        return levels.indexOf(level) >= levels.indexOf(this.level);
-    }
-
-    private format(message: string, args: any[]): string {
-        return args.length ? message.replace(/%s/g, () => String(args.shift())) : message;
+        return levels.indexOf(level) >= levels.indexOf(this.logLevel);
     }
 }
