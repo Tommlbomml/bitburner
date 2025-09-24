@@ -23,7 +23,7 @@ export async function main(ns: NS): Promise<void> {
         }
         await ns.sleep(10);
     }
-    logReport(logger, servers);
+    logReport(logger, servers.length, crackedServers.length, newlyCrackedServers.length);
     logNewlyCracked(logger, newlyCrackedServers);
     logCracked(ns, logger, crackedServers);
 }
@@ -42,9 +42,8 @@ function scanNetwork(ns: NS, servers: TargetServer[], server: TargetServer = new
     }
 }
 
-function logReport(logger: Logger, servers: TargetServer[]): void {
-    const crackedServers = servers.filter((server) => server.isRooted);
-    logger.info(`Scanned ${servers.length} servers. Cracked ${crackedServers.length} new servers. Total cracked: ${crackedServers.length}`);
+function logReport(logger: Logger, servers: number, crackedServers: number, newlyCrackedServers: number): void {
+    logger.info(`Scanned ${servers} servers. Cracked ${newlyCrackedServers} new servers. Total cracked: ${crackedServers}`);
 }
 
 function logNewlyCracked(logger: Logger, newlyCrackedServers: TargetServer[]): void {
@@ -62,14 +61,19 @@ function logCracked(ns: NS, logger: Logger, crackedServers: TargetServer[]): voi
     }
     logger.info(`Cracked servers: ${crackedServers.map((server) => server.name).join(", ")}`);
 
+    const noMoneyServers: TargetServer[] = [];
+    const toHardToHack: TargetServer[] = [];
     const hacking: TargetServer[] = [];
     const preparing: TargetServer[] = [];
     const toBeHacked: TargetServer[] = [];
     const toBePrepared: TargetServer[] = [];
 
     for (const server of crackedServers) {
-        if (server.maxMoney === 0) continue;
-        if (isServerGettingHacked(ns, server.name)) {
+        if (server.maxMoney === 0) {
+            noMoneyServers.push(server);
+        } else if (server.requiredHacking > ns.getHackingLevel()) {
+            toHardToHack.push(server);
+        } else if (isServerGettingHacked(ns, server.name)) {
             hacking.push(server);
         } else if (isServerGettingPrepared(ns, server.name)) {
             preparing.push(server);
@@ -80,6 +84,8 @@ function logCracked(ns: NS, logger: Logger, crackedServers: TargetServer[]): voi
         }
     }
     logger.emptyLine();
+    logger.info(`Servers with no money: ${noMoneyServers.map((s) => s.name).join(", ") || "None"}`);
+    logger.info(`Servers too hard to hack: ${toHardToHack.map((s) => s.name).join(", ") || "None"}`);
     logger.info(`Servers being hacked: ${hacking.map((s) => s.name).join(", ") || "None"}`);
     logger.info(`Servers being prepared: ${preparing.map((s) => s.name).join(", ") || "None"}`);
     logger.info(`Servers to be hacked: ${toBeHacked.map((s) => s.name).join(", ") || "None"}`);
