@@ -23,6 +23,14 @@ the grow threads should only use so much ram that the post weaken threads needed
 so at first we need to calculate the type and number of threads we can run, then the duration of the threads, then the offset to calculate the start time of each script, so they finish in the right order (weaken (pre) -> grow -> weaken (post)) with a small offset between each
 
 after each batch, recalculate the needed threads and start a new batch until the target server is at min security and max money
+
+new plan:
+1. calculate needed threads
+2. calculate end time (max(weakenTime, growTime) + offset * n - 1 while n is the number of different scripts to run (pre-weaken, grow, post-weaken)
+3. start first script
+4. wait until it's time to start the next script
+5. check if we need to adjust timings (script took longer than expected), if so, adjust the end time and recalculate start times for remaining scripts
+...
 */
 
 import { Logger } from "../services/logger";
@@ -31,7 +39,7 @@ import { TargetServer } from "../models/targetServer";
 
 export async function main(ns: NS): Promise<void> {
     ns.ui.openTail();
-    ns.ui.resizeTail(500, 160);
+    ns.ui.resizeTail(500, 180);
     const logger = new Logger(ns, "info", "prepareServer");
     const targetServerName = ns.args[0]?.toString() || "n00dles";
     const ramUsagePercent = parseFloat(ns.args[1]?.toString() || "90");
@@ -50,6 +58,10 @@ export async function main(ns: NS): Promise<void> {
 
         // calculate threads to run this batch
         let ramAvailable = sourceServer.availableRam * (ramUsagePercent / 100);
+        if (ramAvailable < Math.max(weakenThreadSize, growThreadSize)) {
+            ns.sleep(10000);
+            continue;
+        }
         let preWeakenThreads = 0;
         let growThreads = 0;
         let postWeakenThreads = 0;
@@ -76,109 +88,102 @@ export async function main(ns: NS): Promise<void> {
         // calculate timings
         const weakenTime = ns.getWeakenTime(targetServer.name);
         const growTime = ns.getGrowTime(targetServer.name);
-        const endTime = Math.max(weakenTime, growTime) + offsetMs * 2;
-        logger.debug("Timings - weakenTime: %s, growTime: %s, endTime: %s", weakenTime, growTime, endTime);
+        let offsetCount = -1;
+        if (preWeakenThreads > 0) offsetCount++;
+        if (growThreads > 0) offsetCount++;
+        if (postWeakenThreads > 0) offsetCount++;
+        const batchDuration = Math.max(weakenTime, growTime) + offsetMs * offsetCount;
+        const batchEndTime = Date.now() + batchDuration;
+        logger.debug("Timings - weakenTime: %s, growTime: %s, batchDuration: %s", weakenTime, growTime, batchDuration);
 
-        // calculate start times
-        let preWeakenStart = endTime - weakenTime - offsetMs * 2;
-        let growStart = endTime - growTime - offsetMs;
-        let postWeakenStart = endTime - weakenTime;
-        if (preWeakenThreads === 0) {
-            // no pre weaken, move grow and post weaken earlier
-            growStart -= offsetMs;
-            postWeakenStart -= offsetMs;
-        }
-        logger.debug("Start times - preWeakenStart: %s, growStart: %s, postWeakenStart: %s", preWeakenStart, growStart, postWeakenStart);
+        // calculate end times
+        const preWeakenEnd = batchEndTime - weakenTime - offsetMs * 2;
+        const growEnd = batchEndTime - growTime - offsetMs;
+        const postWeakenEnd = batchEndTime - weakenTime;
 
         // log status
-        logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded);
+        logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, postWeakenThreads);
 
         logger.debug(
             "Server total ram: %s, used: %s, available: %s (using %s% = %s), script ram: weaken=%s, grow=%s, total=%s",
-            logger.humanReadableNumber(sourceServer.maxRam),
-            logger.humanReadableNumber(sourceServer.usedRam),
-            logger.humanReadableNumber(sourceServer.availableRam),
+            logger.formatNumber(sourceServer.maxRam),
+            logger.formatNumber(sourceServer.usedRam),
+            logger.formatNumber(sourceServer.availableRam),
             ramUsagePercent,
-            logger.humanReadableNumber((ramUsagePercent / 100) * sourceServer.availableRam),
-            logger.humanReadableNumber(weakenThreadSize * preWeakenThreads + weakenThreadSize * postWeakenThreads),
-            logger.humanReadableNumber(growThreadSize * growThreads),
-            logger.humanReadableNumber(weakenThreadSize * preWeakenThreads + weakenThreadSize * postWeakenThreads + growThreadSize * growThreads)
+            logger.formatNumber((ramUsagePercent / 100) * sourceServer.availableRam),
+            logger.formatNumber(weakenThreadSize * preWeakenThreads + weakenThreadSize * postWeakenThreads),
+            logger.formatNumber(growThreadSize * growThreads),
+            logger.formatNumber(weakenThreadSize * preWeakenThreads + weakenThreadSize * postWeakenThreads + growThreadSize * growThreads)
         );
 
         // run scripts
         // first find out which script to start first
         // maybe create an array of {script, startTime, threads} and sort by startTime
-        const tasks: { script: string; start: number; threads: number }[] = [];
-        if (preWeakenThreads > 0) tasks.push({ script: "weaken", start: preWeakenStart, threads: preWeakenThreads });
-        if (growThreads > 0) tasks.push({ script: "grow", start: growStart, threads: growThreads });
-        if (postWeakenThreads > 0) tasks.push({ script: "weaken", start: postWeakenStart, threads: postWeakenThreads });
+        const tasks: { script: string; start: number; end: number; threads: number }[] = [];
+        if (preWeakenThreads > 0) tasks.push({ script: "weaken", start: preWeakenEnd - weakenTime, end: preWeakenEnd, threads: preWeakenThreads });
+        if (growThreads > 0) tasks.push({ script: "grow", start: growEnd - growTime, end: growEnd, threads: growThreads });
+        if (postWeakenThreads > 0) tasks.push({ script: "weaken", start: postWeakenEnd - weakenTime, end: postWeakenEnd, threads: postWeakenThreads });
 
         tasks.sort((a, b) => a.start - b.start);
 
-        let extraSleptMs = 0;
         for (let i = 0; i < tasks.length; i++) {
-            let actualTaskTime = tasks[i].script === "weaken" ? ns.getWeakenTime(targetServer.name) : ns.getGrowTime(targetServer.name);
-            let expectedTaskTime = tasks[i].script === "weaken" ? weakenTime : growTime;
-            while (expectedTaskTime > actualTaskTime) {
-                const sleepTime = expectedTaskTime - actualTaskTime - extraSleptMs;
-                expectedTaskTime = actualTaskTime;
-                logger.debug("Sleeping %s ms to sync timings", logger.humanReadableTime(sleepTime));
-                await ns.sleep(sleepTime);
-                extraSleptMs += sleepTime;
-                actualTaskTime = tasks[i].script === "weaken" ? ns.getWeakenTime(targetServer.name) : ns.getGrowTime(targetServer.name);
+            const task = tasks[i];
+            let actualTaskTime = task.script === "weaken" ? ns.getWeakenTime(targetServer.name) : ns.getGrowTime(targetServer.name);
+            let timeDiff = task.end - (Date.now() + actualTaskTime);
+            while (timeDiff > 0) {
+                logger.debug("Sleeping %s ms to sync timings", logger.formatTime(timeDiff));
+                await ns.sleep(timeDiff);
+                actualTaskTime = task.script === "weaken" ? ns.getWeakenTime(targetServer.name) : ns.getGrowTime(targetServer.name);
+                timeDiff = task.end - (Date.now() + actualTaskTime);
             }
 
-            const task = tasks[i];
             // check if threads > 0 and available ram
             if (task.threads <= 0) {
-                logger.debug("Skipping %s: threads <= 0", task.script);
+                logger.warn("Skipping %s: threads <= 0", task.script);
                 continue;
             }
             const ramNeeded = (task.script === "weaken" ? weakenThreadSize : growThreadSize) * task.threads;
             if (ramNeeded > sourceServer.maxRam - sourceServer.usedRam) {
-                logger.debug("Skipping %s: not enough RAM (%s needed, %s available)", task.script, ramNeeded, sourceServer.maxRam - sourceServer.usedRam);
-                logger.warn("Not enough RAM to run %s with %s threads on %s", task.script, task.threads, sourceServer.name);
+                logger.warn("Skipping %s: not enough RAM (%s needed, %s available)", task.script, ramNeeded, sourceServer.maxRam - sourceServer.usedRam);
+                logger.terminalLog("Not enough RAM to run %s with %s threads on %s", task.script, task.threads, sourceServer.name);
                 continue;
             }
             logger.debug("Running %s with %s threads", task.script, task.threads);
-
             ns.exec(`batch/${task.script}.ts`, sourceServer.name, task.threads, targetServer.name);
             if (i < tasks.length - 1) {
                 const nextTask = tasks[i + 1];
-                const totalSleepTime = nextTask.start - task.start;
+                const totalSleepTime = nextTask.start - Date.now();
                 const next = "next task";
-                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, totalSleepTime);
+                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, postWeakenThreads, next, totalSleepTime);
                 let remainingSleep = totalSleepTime;
                 while (remainingSleep > 0) {
-                    const chunk = Math.max(Math.min(remainingSleep, 1000), 1);
-                    await ns.sleep(chunk);
-                    remainingSleep -= chunk;
-                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, remainingSleep);
+                    await ns.sleep(Math.max(Math.min(remainingSleep, 1000), 1));
+                    remainingSleep = nextTask.start - Date.now();
+                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, postWeakenThreads, next, remainingSleep);
                 }
             } else {
                 // last task, wait for it to finish
-                const totalSleepTime = endTime - task.start;
+                const totalSleepTime = task.end - Date.now();
                 let next = "finished";
                 if (preWeakenThreadsNeeded > preWeakenThreads || growThreadsNeeded > growThreads) {
                     next = "next batch";
                 }
-                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, totalSleepTime);
+                logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, postWeakenThreads, next, totalSleepTime);
                 let remainingSleep = totalSleepTime;
                 while (remainingSleep > 0) {
-                    const chunk = Math.max(Math.min(remainingSleep, 1000), 1);
-                    await ns.sleep(chunk);
-                    remainingSleep -= chunk;
-                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, next, remainingSleep);
+                    await ns.sleep(Math.max(Math.min(remainingSleep, 1000), 1));
+                    remainingSleep = task.end - Date.now();
+                    logReport(logger, targetServer, preWeakenThreads, preWeakenThreadsNeeded, growThreads, growThreadsNeeded, postWeakenThreads, next, remainingSleep);
                 }
             }
         }
         logger.info(
             "Batch complete for %s. Current money: %s/%s, security: %s/%s",
             targetServer.name,
-            logger.humanReadableNumber(targetServer.currentMoney),
-            logger.humanReadableNumber(targetServer.maxMoney),
-            logger.humanReadableNumber(targetServer.currentSecurity),
-            logger.humanReadableNumber(targetServer.minSecurity)
+            logger.formatNumber(targetServer.currentMoney),
+            logger.formatNumber(targetServer.maxMoney),
+            logger.formatNumber(targetServer.currentSecurity),
+            logger.formatNumber(targetServer.minSecurity)
         );
     }
     logger.info("%s is fully prepared!", targetServer.name);
@@ -193,6 +198,7 @@ function logReport(
     preWeakenThreadsNeeded: number,
     growThreads: number,
     growThreadsNeeded: number,
+    postWeakenThreads: number,
     next?: string,
     sleep?: number
 ): void {
@@ -200,10 +206,10 @@ function logReport(
     logger.info("Preparing %s", targetServer.name);
     logger.info(
         "Money: %s/%s, Security: %s/%s",
-        logger.humanReadableNumber(targetServer.currentMoney),
-        logger.humanReadableNumber(targetServer.maxMoney),
-        logger.humanReadableNumber(targetServer.currentSecurity),
-        logger.humanReadableNumber(targetServer.minSecurity)
+        logger.formatNumber(targetServer.currentMoney),
+        logger.formatNumber(targetServer.maxMoney),
+        logger.formatNumber(targetServer.currentSecurity),
+        logger.formatNumber(targetServer.minSecurity)
     );
     if (preWeakenThreadsNeeded === 0) {
         logger.info("Weakening done");
@@ -215,8 +221,13 @@ function logReport(
     } else {
         logger.info("Grow Threads:   %s of %s", growThreads, growThreadsNeeded);
     }
+    if (postWeakenThreads !== 0) {
+        logger.info("Post-Weaken Threads: %s", postWeakenThreads);
+    } else {
+        logger.info("No Post-Weakening!");
+    }
     if (sleep !== undefined && next !== undefined) {
-        logger.info("Sleeping %s until %s", logger.humanReadableTime(sleep), next);
+        logger.info("Sleeping %s until %s", logger.formatTime(sleep), next);
     } else {
         logger.info("Preparing...");
     }

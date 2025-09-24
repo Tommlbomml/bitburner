@@ -85,53 +85,20 @@ export class Logger {
         this.ns.clearLog();
     }
 
-    public humanReadableNumber(num: number, decimals: number = 2): string {
-        if (!isFinite(num)) return String(num);
-        if (num === 0) return "0";
-        const sign = num < 0 ? "-" : "";
-        const abs = Math.abs(num);
-        const largeSuffixes = ["", "K", "M", "G", "T", "P", "E", "Z"];
-        const smallSuffixes = ["", "m", "µ", "n", "p", "f", "a", "z"];
-        let suffix = "";
-        let value = abs;
-        if (abs >= 1) {
-            let i = 0;
-            while (value >= 1000 && i < largeSuffixes.length - 1) {
-                value /= 1000;
-                i++;
-            }
-            suffix = largeSuffixes[i];
-        } else {
-            let i = 0;
-            while (value < 1 && i < smallSuffixes.length - 1) {
-                value *= 1000;
-                i++;
-            }
-            suffix = smallSuffixes[i];
-        }
-        const out = value.toFixed(decimals).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
-        return sign + out + suffix;
+    public formatNumber(num: number, decimals: number = 2, suffixStart: number = 1000, isInt: boolean = false): string {
+        return this.ns.formatNumber(num, decimals, suffixStart, isInt);
     }
 
-    public humanReadableTime(ms: number, ignoreMs: boolean = true): string {
-        if (ms < 0) return "-" + this.humanReadableTime(-ms, ignoreMs);
-        if (ms === 0) return ignoreMs ? "0 s" : "0 ms";
-        ms = Math.floor(ms);
-        if (ms < 1) return ignoreMs ? "< 1 s" : "< 1 ms";
-        const units = [{ label: "d", ms: 86400000 }, { label: "h", ms: 3600000 }, { label: "m", ms: 60000 }, { label: "s", ms: 1000 }, ...(ignoreMs ? [] : [{ label: "ms", ms: 1 }])];
-        if (ignoreMs) {
-            ms = Math.round(ms / 1000) * 1000;
-        }
-        let remaining = ms;
-        const parts: string[] = [];
-        for (const unit of units) {
-            if (remaining >= unit.ms) {
-                const value = Math.floor(remaining / unit.ms);
-                remaining -= value * unit.ms;
-                parts.push(`${value} ${unit.label}`);
-            }
-        }
-        return parts.join(", ");
+    public formatPercent(num: number, decimals: number = 2, suffixStart: number = 1e6): string {
+        return this.ns.formatPercent(num, decimals, suffixStart);
+    }
+
+    public formatTime(ms: number, showMillis: boolean = false): string {
+        return this.ns.tFormat(ms, showMillis);
+    }
+
+    public formatRam(ram: number, decimals: number = 2): string {
+        return this.ns.formatRam(ram, decimals);
     }
 
     private print(message: string): void {

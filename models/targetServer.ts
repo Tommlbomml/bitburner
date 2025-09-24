@@ -40,7 +40,7 @@ export class TargetServer extends BaseServer {
         return this.ns.getServer(this.name).numOpenPortsRequired ?? 0;
     }
 
-    get requredHacking(): number {
+    get requiredHacking(): number {
         return this.ns.getServer(this.name).requiredHackingSkill ?? 0;
     }
 

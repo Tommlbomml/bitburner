@@ -34,9 +34,9 @@ export class HackingService {
         while (weakenThreads > 0) {
             this.logger.debug(
                 "Security: %s (min: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getSecurity()),
-                this.logger.humanReadableNumber(this.target.getMinSecurity()),
-                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                this.logger.formatNumber(this.target.getSecurity()),
+                this.logger.formatNumber(this.target.getMinSecurity()),
+                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
             if (maxWeakenThreads <= 0) {
@@ -53,17 +53,17 @@ export class HackingService {
             weakenThreads = this.target.calculateWeakenThreads(this.ns.getHostname());
             this.logger.debug(
                 "Security: %s (min: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getSecurity()),
-                this.logger.humanReadableNumber(this.target.getMinSecurity()),
-                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                this.logger.formatNumber(this.target.getSecurity()),
+                this.logger.formatNumber(this.target.getMinSecurity()),
+                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
         }
         while (growThreads > 0) {
             this.logger.debug(
                 "Money: %s (max: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
-                this.logger.humanReadableNumber(this.target.getMaxMoney()),
-                this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+                this.logger.formatNumber(this.target.getMoneyAvailable()),
+                this.logger.formatNumber(this.target.getMaxMoney()),
+                this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
             );
             const maxGrowThreads = getAvailableThreads(this.ns, "grow");
             if (maxGrowThreads <= 0) {
@@ -80,17 +80,17 @@ export class HackingService {
             growThreads = this.target.calculateGrowThreads(this.ns.getHostname());
             this.logger.debug(
                 "Money: %s (max: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
-                this.logger.humanReadableNumber(this.target.getMaxMoney()),
-                this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+                this.logger.formatNumber(this.target.getMoneyAvailable()),
+                this.logger.formatNumber(this.target.getMaxMoney()),
+                this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
             );
         }
         while (additionalWeakenThreads > 0) {
             this.logger.debug(
                 "Security: %s (min: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getSecurity()),
-                this.logger.humanReadableNumber(this.target.getMinSecurity()),
-                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                this.logger.formatNumber(this.target.getSecurity()),
+                this.logger.formatNumber(this.target.getMinSecurity()),
+                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
             const maxWeakenThreads = getAvailableThreads(this.ns, "weaken");
             if (maxWeakenThreads <= 0) {
@@ -107,9 +107,9 @@ export class HackingService {
             additionalWeakenThreads = this.target.calculateAdditionalWeakenThreads(growThreads);
             this.logger.debug(
                 "Security: %s (min: %s) (%s%)",
-                this.logger.humanReadableNumber(this.target.getSecurity()),
-                this.logger.humanReadableNumber(this.target.getMinSecurity()),
-                this.logger.humanReadableNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
+                this.logger.formatNumber(this.target.getSecurity()),
+                this.logger.formatNumber(this.target.getMinSecurity()),
+                this.logger.formatNumber((this.target.getSecurity() / this.target.getMinSecurity()) * 100)
             );
         }
     }
@@ -117,9 +117,9 @@ export class HackingService {
     private async performHack(): Promise<void> {
         this.logger.debug(
             "Money: %s (max: %s) (%s%)",
-            this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
-            this.logger.humanReadableNumber(this.target.getMaxMoney()),
-            this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            this.logger.formatNumber(this.target.getMoneyAvailable()),
+            this.logger.formatNumber(this.target.getMaxMoney()),
+            this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
         );
         let hackThreads = this.target.calculateHackThreads(10, this.ns.getHostname());
         while (hackThreads > 0) {
@@ -139,9 +139,9 @@ export class HackingService {
         }
         this.logger.debug(
             "Money: %s (max: %s) (%s%)",
-            this.logger.humanReadableNumber(this.target.getMoneyAvailable()),
-            this.logger.humanReadableNumber(this.target.getMaxMoney()),
-            this.logger.humanReadableNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
+            this.logger.formatNumber(this.target.getMoneyAvailable()),
+            this.logger.formatNumber(this.target.getMaxMoney()),
+            this.logger.formatNumber((this.target.getMoneyAvailable() / this.target.getMaxMoney()) * 100)
         );
     }
 }
